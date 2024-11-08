@@ -1,0 +1,89 @@
+trigger:
+  branches:
+    include:
+      - master
+
+pool: Default
+
+variables:
+  ACR_LOGIN_SERVER: <login-server-name>
+  IMAGE_NAME: 'ase-welcome'
+  IMAGE_TAG: 'latest'
+  SCANNER_TOOL_PATH: '/usr/local/bin/trivy'  # Adjust this if using a different scanner
+
+stages:
+  - stage: BuildAndPush
+    jobs:
+      - job: Build
+        steps:
+          - task: Docker@2
+            inputs:
+              containerRegistry: 'docker-service-con'   # Use your Docker Registry service connection name
+              repository: '$(IMAGE_NAME)'
+              command: 'buildAndPush'
+              Dockerfile: '**/Dockerfile'
+              tags: |
+                $(IMAGE_TAG)
+
+  - stage: ScanImage
+    dependsOn: BuildAndPush
+    jobs:
+      - job: Scan
+        steps:
+          - script: |
+              echo "Installing Trivy..."
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+              echo "Trivy installed successfully:"
+              trivy --version
+            displayName: 'Install Trivy'
+          
+          - script: |
+              echo "Scanning the image with Trivy..."
+              $SCANNER_TOOL_PATH image $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG 
+              $SCANNER_TOOL_PATH image $ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG > scan_report.txt
+            displayName: 'Run Image Scan'
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: 'scan_report.txt'
+              artifactName: 'SecurityReports'
+            displayName: 'Publish Scan Report'
+
+  - stage: ReviewScanResults
+    dependsOn: ScanImage
+    jobs:
+      - job: EvaluateScan
+        steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifactName: 'SecurityReports'
+              targetPath: '$(Pipeline.Workspace)/SecurityReports'  # Store in a known location
+            displayName: 'Download Scan Report Artifact'
+
+          - script: |
+              echo "Listing contents of $(Pipeline.Workspace)/SecurityReports..."
+              ls -la $(Pipeline.Workspace)/SecurityReports
+            displayName: 'Verify Scan Report Download'
+
+          - script: |
+              echo "Checking for critical or high vulnerabilities..."
+              critical=$(grep -i "CRITICAL" $(Pipeline.Workspace)/SecurityReports/scan_report.txt | wc -l)
+              high=$(grep -i "HIGH" $(Pipeline.Workspace)/SecurityReports/scan_report.txt | wc -l)
+              if [ "$critical" -gt 1 ] || [ "$high" -gt 1 ]; then
+                echo "Critical or high vulnerabilities found. Failing pipeline."
+                exit 1
+              else
+                echo "No critical or high vulnerabilities found. Approved for deployment."
+              fi
+            displayName: 'Evaluate Scan Report'
+
+  - stage: Deploy
+    dependsOn: ReviewScanResults
+    condition: succeeded()  # Only run if the previous stage was successful
+    jobs:
+      - job: DeployApp
+        steps:
+          - script: |
+              echo "Deploying application..."
+              # Add deployment commands here (e.g., Helm deploy, kubectl apply, etc.)
+            displayName: 'Deploy Application'
