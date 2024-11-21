@@ -7,7 +7,7 @@ pool: Default
 
 variables:
   ACR_LOGIN_SERVER: <login-server-name>
-  IMAGE_NAME: 'ase-welcome'
+  IMAGE_NAME: 'sampleapp'
   IMAGE_TAG: 'latest'
   SCANNER_TOOL_PATH: '/usr/local/bin/trivy'  # Adjust this if using a different scanner
 
