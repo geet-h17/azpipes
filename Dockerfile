@@ -1,3 +1,3 @@
-# FROM bkimminich/juice-shop
+FROM bkimminich/juice-shop
 
-FROM ubuntu
+#FROM ubuntu
