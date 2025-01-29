@@ -6,7 +6,7 @@ trigger:
 pool: Default
 
 variables:
-  ACR_LOGIN_SERVER: asedevopspipelineimagescan1umu6gol.azurecr.io
+  ACR_LOGIN_SERVER: asedevopspipelineimagescankv456lnt.azurecr.io
   IMAGE_NAME: 'sampleapp'
   IMAGE_TAG: 'latest'
   SCANNER_TOOL_PATH: '/usr/local/bin/trivy'  # Adjust this if using a different scanner
